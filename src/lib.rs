@@ -1,7 +1,47 @@
-//! A simple MPI implementation for single-machine shared memory communication
+//! A simple MPI (Message Passing Interface) implementation for single-machine shared memory communication.
 //! 
-//! This library provides basic MPI-like functionality including send, receive,
-//! broadcast, scatter, and gather operations using POSIX shared memory.
+//! This library provides MPI-like functionality for parallel computing within a single machine using POSIX shared memory.
+//! It enables efficient inter-process communication through operations like point-to-point messaging, collective
+//! operations, and shared memory arrays.
+//!
+//! # Features
+//!
+//! - **Process Management**: Spawn and coordinate multiple processes
+//! - **Point-to-Point Communication**: Send and receive messages between processes
+//! - **Collective Operations**: Broadcast, scatter, and gather data across processes
+//! - **Shared Memory Arrays**: Share read-only arrays between processes efficiently
+//! - **Synchronization**: Barrier operations for process synchronization
+//!
+//! # Quick Start
+//!
+//! ```rust,no_run
+//! use simple_mpi::World;
+//!
+//! // Initialize MPI with 4 processes
+//! let world = World::init(4).unwrap();
+//!
+//! // Get process rank and size
+//! println!("Process {} of {}", world.rank(), world.size());
+//!
+//! // Example: Root process broadcasts data to all others
+//! let data = if world.rank() == 0 { 42 } else { 0 };
+//! let result = world.broadcast(&data, 0).unwrap();
+//! println!("Process {} received {}", world.rank(), result);
+//!
+//! // Clean up MPI resources
+//! world.destruct();
+//! ```
+//!
+//! # Architecture
+//!
+//! The library uses POSIX shared memory (`/dev/shm` on Linux) to establish communication channels between processes.
+//! Each process pair gets a dedicated memory slot for message passing, and additional shared memory segments are
+//! used for shared arrays and synchronization.
+//!
+//! # Error Handling
+//!
+//! All operations return a `Result` type with detailed error variants through [`MPIError`].
+//! Common errors include invalid ranks, communication failures, and shared memory issues.
 
 use shared_memory::{Shmem, ShmemConf};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
@@ -105,7 +145,44 @@ impl<T: Pod> SharedReadOnlyArray<T> {
     }
 }
 
-/// The main MPI World structure that manages inter-process communication
+/// The main MPI World structure that manages inter-process communication.
+///
+/// `World` represents the collection of all processes in the MPI computation. It provides
+/// methods for process identification, communication, and synchronization.
+///
+/// # Examples
+///
+/// Basic point-to-point communication:
+/// ```rust,no_run
+/// use simple_mpi::World;
+///
+/// let world = World::init(2).unwrap();
+///
+/// if world.rank() == 0 {
+///     // Send data from process 0 to process 1
+///     world.send(&42, 1, 0).unwrap();
+/// } else {
+///     // Receive data in process 1
+///     let data: i32 = world.recv(0, 0).unwrap();
+///     println!("Received: {}", data);
+/// }
+///
+/// world.destruct();
+/// ```
+///
+/// Collective operation (broadcast):
+/// ```rust,no_run
+/// use simple_mpi::World;
+///
+/// let world = World::init(4).unwrap();
+///
+/// // Process 0 broadcasts data to all processes
+/// let data = if world.rank() == 0 { vec![1, 2, 3] } else { vec![] };
+/// let result = world.broadcast(&data, 0).unwrap();
+///
+/// assert_eq!(result, vec![1, 2, 3]);
+/// world.destruct();
+/// ```
 pub struct World {
     rank: i32,
     size: i32,
@@ -114,7 +191,31 @@ pub struct World {
 
 impl World {
     /// Initialize the MPI environment and create a new World.
-    /// This function blocks until all processes are initialized.
+    ///
+    /// This function spawns the specified number of processes and establishes shared memory
+    /// communication channels between them. It blocks until all processes are initialized
+    /// and ready for communication.
+    ///
+    /// # Arguments
+    ///
+    /// * `size` - The total number of processes to create (must be positive)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(World)` - A new World instance if initialization succeeds
+    /// * `Err(MPIError)` - If initialization fails (e.g., invalid size, shared memory error)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// // Create a world with 4 processes
+    /// let world = World::init(4).unwrap();
+    /// println!("Process {} of {} initialized", world.rank(), world.size());
+    ///
+    /// world.destruct();
+    /// ```
     pub fn init(size: i32) -> Result<Self> {
         if size <= 0 {
             return Err(MPIError::InitError("Size must be positive".into()));
@@ -352,12 +453,26 @@ impl World {
         }
     }
 
-    /// Get the rank of the current process
+    /// Get the rank (unique identifier) of the current process.
+    ///
+    /// The rank is a number between 0 and `size()-1` that uniquely identifies each process.
+    /// Process rank 0 is typically considered the "root" process for collective operations.
+    ///
+    /// # Returns
+    ///
+    /// An integer representing this process's rank
     pub fn rank(&self) -> i32 {
         self.rank
     }
 
-    /// Get the total number of processes
+    /// Get the total number of processes in the World.
+    ///
+    /// This value remains constant throughout the lifetime of the World and matches
+    /// the size parameter passed to [`World::init()`].
+    ///
+    /// # Returns
+    ///
+    /// The total number of processes
     pub fn size(&self) -> i32 {
         self.size
     }
@@ -402,7 +517,36 @@ impl World {
         Ok(())
     }
 
-    /// Send data to a specific rank (blocking until received)
+    /// Send data to a specific rank (blocking until received).
+    ///
+    /// This function serializes the data and sends it to the specified destination process.
+    /// It blocks until the receiving process has acknowledged receipt of the message.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to send (must implement Serialize)
+    /// * `dest` - The rank of the destination process
+    /// * `tag` - A message identifier (useful for matching specific sends/receives)
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(())` - If the send succeeds
+    /// * `Err(MPIError)` - If the send fails (e.g., invalid rank, serialization error)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(2).unwrap();
+    ///
+    /// if world.rank() == 0 {
+    ///     let data = vec![1, 2, 3];
+    ///     world.send(&data, 1, 0).unwrap();
+    /// }
+    ///
+    /// world.destruct();
+    /// ```
     pub fn send<T: Serialize>(&self, data: &T, dest: i32, tag: i32) -> Result<()> {
         if dest >= self.size {
             return Err(MPIError::InvalidRank(dest));
@@ -449,7 +593,35 @@ impl World {
         Ok(())
     }
 
-    /// Receive data from a specific rank
+    /// Receive data from a specific rank.
+    ///
+    /// This function blocks until a message with the specified tag arrives from the source process.
+    /// The received data is deserialized into the specified type.
+    ///
+    /// # Arguments
+    ///
+    /// * `source` - The rank of the sending process
+    /// * `tag` - The message identifier to match
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(T)` - The received and deserialized data
+    /// * `Err(MPIError)` - If the receive fails (e.g., invalid rank, deserialization error)
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(2).unwrap();
+    ///
+    /// if world.rank() == 1 {
+    ///     let data: Vec<i32> = world.recv(0, 0).unwrap();
+    ///     println!("Received: {:?}", data);
+    /// }
+    ///
+    /// world.destruct();
+    /// ```
     pub fn recv<T: DeserializeOwned>(&self, source: i32, tag: i32) -> Result<T> {
         if source >= self.size {
             return Err(MPIError::InvalidRank(source));
@@ -485,7 +657,40 @@ impl World {
         Ok(result)
     }
 
-    /// Broadcast data from root rank to all other ranks
+    /// Broadcast data from root rank to all other ranks.
+    ///
+    /// The root process sends its data to all other processes. This is a collective
+    /// operation that must be called by all processes with the same root rank.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The data to broadcast (only used by root process)
+    /// * `root` - The rank of the broadcasting process
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(T)` - The broadcast data (same for all processes)
+    /// * `Err(MPIError)` - If the broadcast fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(4).unwrap();
+    ///
+    /// // Root broadcasts a vector to all processes
+    /// let data = if world.rank() == 0 {
+    ///     vec![1, 2, 3]
+    /// } else {
+    ///     vec![]
+    /// };
+    ///
+    /// let result = world.broadcast(&data, 0).unwrap();
+    /// assert_eq!(result, vec![1, 2, 3]);
+    ///
+    /// world.destruct();
+    /// ```
     pub fn broadcast<T: Serialize + DeserializeOwned + Clone>(&self, data: &T, root: i32) -> Result<T> {
         if root >= self.size {
             return Err(MPIError::InvalidRank(root));
@@ -510,7 +715,41 @@ impl World {
         result
     }
 
-    /// Scatter data from root rank to all ranks (blocking until all processes complete)
+    /// Scatter data from root rank to all ranks.
+    ///
+    /// Distributes distinct pieces of data from the root process to all processes.
+    /// The root process provides a slice with size equal to the number of processes,
+    /// and each process receives one piece.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Slice of data to scatter (only required on root process)
+    /// * `root` - The rank of the scattering process
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(T)` - This process's piece of the scattered data
+    /// * `Err(MPIError)` - If the scatter fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(4).unwrap();
+    ///
+    /// // Root scatters different numbers to each process
+    /// let data = if world.rank() == 0 {
+    ///     Some(&[10, 20, 30, 40][..])
+    /// } else {
+    ///     None
+    /// };
+    ///
+    /// let my_number = world.scatter(data, 0).unwrap();
+    /// println!("Process {} got {}", world.rank(), my_number);
+    ///
+    /// world.destruct();
+    /// ```
     pub fn scatter<T: Serialize + DeserializeOwned + Clone>(
         &self,
         data: Option<&[T]>,
@@ -558,7 +797,39 @@ impl World {
         Ok(result)
     }
 
-    /// Gather data from all ranks to root rank (blocking until all processes complete)
+    /// Gather data from all ranks to root rank.
+    ///
+    /// Collects data from all processes into a vector on the root process.
+    /// This is the inverse operation of scatter.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - The local data to contribute to the gather
+    /// * `root` - The rank of the gathering process
+    ///
+    /// # Returns
+    ///
+    /// * `Ok(Some(Vec<T>))` - Vector of gathered data (only on root process)
+    /// * `Ok(None)` - On non-root processes
+    /// * `Err(MPIError)` - If the gather fails
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(4).unwrap();
+    ///
+    /// // Each process contributes its rank
+    /// let result = world.gather(&world.rank(), 0).unwrap();
+    ///
+    /// if world.rank() == 0 {
+    ///     // Root process gets vector of all ranks
+    ///     println!("Gathered: {:?}", result.unwrap());
+    /// }
+    ///
+    /// world.destruct();
+    /// ```
     pub fn gather<T: Serialize + DeserializeOwned + Clone>(
         &self,
         data: &T,
@@ -598,7 +869,19 @@ impl World {
     }
 
     /// Explicitly clean up MPI resources and synchronize process shutdown.
-    /// This should be called when you're done using the World instance.
+    ///
+    /// This method must be called when you're done using the World instance to ensure
+    /// proper cleanup of shared memory resources and synchronization of process shutdown.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,no_run
+    /// use simple_mpi::World;
+    ///
+    /// let world = World::init(2).unwrap();
+    /// // ... use the world for communication ...
+    /// world.destruct(); // Clean up resources
+    /// ```
     pub fn destruct(self) {
         unsafe {
             let state = &mut *(SHARED_MEMORY[self.shmem_idx].as_ptr() as *mut SharedState);
