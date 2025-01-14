@@ -22,85 +22,77 @@ jobs:
     - name: Generate Rust Documentation
       run: cargo doc --no-deps
 
-    - name: Setup Node.js
-      uses: actions/setup-node@v4
+    - name: Setup Python
+      uses: actions/setup-python@v4
       with:
-        node-version: '20'
+        python-version: '3.11'
 
     - name: Create Doc Conversion Script
       run: |
-        cat > convert_docs.js << 'EOL'
-        const fs = require('fs').promises;
-        const path = require('path');
-        const { Anthropic } = require('@anthropic-ai/sdk');
-
-        const anthropic = new Anthropic({
-          apiKey: process.env.ANTHROPIC_API_KEY,
-        });
-
-        async function readHtmlFiles(dir) {
-          const files = await fs.readdir(dir, { withFileTypes: true });
-          const contents = [];
-
-          for (const file of files) {
-            const fullPath = path.join(dir, file.name);
-            if (file.isDirectory()) {
-              contents.push(...await readHtmlFiles(fullPath));
-            } else if (file.name.endsWith('.html')) {
-              const content = await fs.readFile(fullPath, 'utf-8');
-              contents.push({
-                path: fullPath,
-                content: content
-              });
-            }
-          }
-
-          return contents;
-        }
-
-        async function convertToMarkdown() {
-          try {
-            // Read all HTML documentation files
-            const docFiles = await readHtmlFiles('target/doc/simple_mpi');
+        cat > convert_docs.py << 'EOL'
+        import os
+        import json
+        from pathlib import Path
+        from jinja2 import Template
+        from anthropic import Anthropic
+        
+        def read_html_files(dir_path):
+            contents = []
+            for path in Path(dir_path).rglob('*.html'):
+                with open(path, 'r', encoding='utf-8') as f:
+                    contents.append({
+                        'path': str(path),
+                        'content': f.read()
+                    })
+            return contents
+        
+        def main():
+            # Read all HTML documentation files
+            doc_files = read_html_files('target/doc/simple_mpi')
             
-            // Create docs directory for markdown files
-            await fs.mkdir('markdown_docs', { recursive: true });
-
-            console.log('Converting documentation to markdown...');
+            # Combine all HTML content
+            all_docs = '\n\n'.join(f"# File: {Path(f['path']).name}\n{f['content']}" 
+                                 for f in doc_files)
             
-            const message = await anthropic.messages.create({
-                model: "claude-3-5-sonnet-20241022",
-                max_tokens: 4096,
-                messages: [{
-                  role: "user",
-                  content: `Here is all the Rust documentation HTML content. Convert it into a single, well-structured markdown document that preserves all technical information, code examples, and structure. Remove HTML-specific elements but maintain the content and formatting in Markdown format. Include a table of contents at the beginning:
-
-                  ${docFiles.map(file => `
-                  # File: ${path.basename(file.path)}
-                  ${file.content}
-                  `).join('\n\n')}`
+            # Read the template
+            with open('.github/workflows/prompt.jinja', 'r') as f:
+                template = Template(f.read())
+            
+            # Render the template
+            prompt = template.render(documentation=all_docs)
+            
+            # Create docs directory
+            os.makedirs('markdown_docs', exist_ok=True)
+            
+            # Convert to markdown using Claude
+            anthropic = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
+            
+            print('Converting documentation to markdown...')
+            message = anthropic.messages.create(
+                model="claude-3-5-sonnet-20241022",
+                max_tokens=4096,
+                messages=[{
+                    "role": "user",
+                    "content": prompt
                 }]
-            });
-
-            // Save as single markdown file
-            await fs.writeFile('markdown_docs/documentation.md', message.content[0].text);
-            console.log('Created unified markdown documentation');
-          } catch (error) {
-            console.error('Error:', error);
-            process.exit(1);
-          }
-        }
-
-        convertToMarkdown();
+            )
+            
+            # Save the markdown
+            with open('markdown_docs/documentation.md', 'w') as f:
+                f.write(message.content[0].text)
+            print('Created unified markdown documentation')
+        
+        if __name__ == '__main__':
+            main()
         EOL
 
     - name: Install Dependencies
-      run: npm install @anthropic-ai/sdk
+      run: pip install anthropic jinja2
 
     - name: Convert Documentation to Markdown
       env:
         ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      run: node convert_docs.js
+      run: python convert_docs.py
 
     - name: Upload HTML Documentation
       uses: actions/upload-artifact@v4

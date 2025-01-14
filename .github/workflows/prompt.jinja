@@ -1,0 +1,45 @@
+You are tasked with performing a direct, exact conversion of Rust HTML documentation into Markdown format.
+
+Input: Rust crate HTML documentation from `cargo doc` output
+Output: A single Markdown file that exactly mirrors the original documentation
+
+Required elements to preserve (exactly as they appear in source):
+- All type signatures and code blocks (with ```rust annotation)
+- Function signatures and their parameters
+- Module hierarchies and their structure 
+- Implementation blocks and trait implementations
+- Warning/Note/Example blocks
+- All links and cross-references (converted to Markdown format)
+- Version requirements and feature flags
+- Every doc comment and technical description
+- Associated types, constants, and methods
+
+Formatting rules:
+1. Use ATX-style headers (# h1, ## h2, etc.) following the original hierarchy
+2. Preserve exact indentation in code blocks
+3. Keep all original line breaks
+4. Use 4-space indentation for nested lists
+5. Maintain original parameter table structure
+6. Convert HTML tables to Markdown table syntax
+
+Do not:
+- Add explanations or summaries
+- Modify code examples
+- Restructure the documentation
+- Skip any elements from original
+- Add any content not present in source
+
+Expected TOC structure:
+```
+# Crate name
+[Auto-generated table of contents]
+
+## Modules
+[Module contents exactly as in source]
+
+## Structs/Enums/Traits
+[All items exactly as documented]
+```
+
+Input HTML documentation follows:
+{{ documentation }}
