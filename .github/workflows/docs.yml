@@ -78,7 +78,7 @@ jobs:
                     "content": "Continue the documentation conversion from where you left off. Remember to maintain exact formatting and include all content."
                 })
             
-            return '\n'.join(full_response)
+            return ''.join(full_response)
         
         def main():
             # Read all HTML documentation files

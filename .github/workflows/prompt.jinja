@@ -26,23 +26,28 @@ Formatting rules:
 9. Convert ALL content without truncation
 10. Output markdown content directly without introduction or meta-commentary
 
-Rules for code blocks:
-- Use ```rust for Rust code examples
-- Use ``` for terminal/console output
-- Preserve exact indentation and spacing
-- Keep all comments and documentation strings
-- Maintain original line breaks in code
+Method documentation rules:
+1. Each method must have sections in this order if present in source:
+    - Description (general text)
+    - Examples (if any)
+    - Arguments (if any)
+    - Returns (if any)
+    - Errors (if any)
+    - Safety (if any)
+    - Panics (if any)
+2. Format method signatures as:
+    ```rust
+    pub fn method_name(...) -> ReturnType
+    ```
+3. Format section headers as:
+    #### Arguments
+    - `arg_name` - description
+    
+    #### Returns
+    - Description of return value
 
-Rules for links and references:
-- Convert all HTML <a> tags to Markdown [text](link) format
-- Preserve all internal section references
-- Keep all external URLs
-- Convert anchor links to Markdown section references
-
-Rules for special blocks:
-- Convert WARNING/NOTE/IMPORTANT HTML blocks to Markdown blockquotes
-- Preserve all admonition labels (e.g., "Warning:", "Note:")
-- Maintain formatting within these blocks
+    #### Errors
+    - Error conditions
 
 Do not:
 - Add explanations or summaries
@@ -53,6 +58,7 @@ Do not:
 - Include comments about conversion process
 - Use ellipsis or placeholders
 - Include status updates or progress indicators
+- Add introductory text about the conversion
 
 Expected TOC structure:
 # Crate name
