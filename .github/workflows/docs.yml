@@ -1,4 +1,4 @@
-name: Documentation Generation
+name: Style Check
 
 on:
   push:
@@ -7,20 +7,11 @@ on:
     branches: [ main ]
 
 jobs:
-  build-docs:
+  check-style:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
-
-    - name: Setup Rust
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        toolchain: stable
-
-    - name: Generate Rust Documentation
-      run: cargo doc --no-deps
 
     - name: Setup Python
       uses: actions/setup-python@v4
@@ -28,21 +19,9 @@ jobs:
         python-version: '3.11'
 
     - name: Install Dependencies
-      run: pip install openai jinja2 pydantic
+      run: pip install openai pydantic
 
-    - name: Convert Documentation
+    - name: Check Style
       env:
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-      run: python .github/workflows/doc_converter.py
-
-    - name: Upload HTML Documentation
-      uses: actions/upload-artifact@v4
-      with:
-        name: rust-docs-html
-        path: target/doc/simple_mpi
-        
-    - name: Upload Documentation
-      uses: actions/upload-artifact@v4
-      with:
-        name: rust-docs
-        path: markdown_docs
+      run: python .github/workflows/style_checker.py
