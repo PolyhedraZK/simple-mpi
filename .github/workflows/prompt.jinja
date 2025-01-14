@@ -24,7 +24,6 @@ Formatting rules:
 7. Never use [...] or similar placeholders
 8. Never add notes about conversion process or status
 9. Convert ALL content without truncation
-10. Output markdown content directly without introduction or meta-commentary
 
 Method documentation rules:
 1. Each method must have sections in this order if present in source:
@@ -62,13 +61,9 @@ Do not:
 
 Expected TOC structure:
 # Crate name
-[Auto-generated table of contents]
-
-## Modules
-[Module contents exactly as in source]
-
 ## Structs/Enums/Traits
-[All items exactly as documented]
+### Methods function 1
+### Methods function 2
 
 Input HTML documentation follows:
 {{ documentation }}

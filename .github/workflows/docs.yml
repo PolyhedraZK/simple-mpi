@@ -54,6 +54,9 @@ jobs:
             messages = [{
                 "role": "user",
                 "content": prompt
+            }, {
+                "role": "assistant",
+                "content": "#"
             }]
             
             while True:
@@ -73,9 +76,10 @@ jobs:
                     
                 # Add the response and request continuation
                 messages.append({"role": "assistant", "content": response_text})
+                tail_of_last_response = response_text[-1000:]
                 messages.append({
-                    "role": "user", 
-                    "content": "Continue the documentation conversion from where you left off. Remember to maintain exact formatting and include all content."
+                    "role": "assistant", 
+                    "content": tail_of_last_response if tail_of_last_response else "#"
                 })
             
             return ''.join(full_response)
