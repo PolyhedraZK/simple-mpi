@@ -1,0 +1,115 @@
+name: Documentation Generation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Rust
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: stable
+
+    - name: Generate Rust Documentation
+      run: cargo doc --no-deps
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Create Doc Conversion Script
+      run: |
+        cat > convert_docs.js << 'EOL'
+        const fs = require('fs').promises;
+        const path = require('path');
+        const { Anthropic } = require('@anthropic-ai/sdk');
+
+        const anthropic = new Anthropic({
+          apiKey: process.env.ANTHROPIC_API_KEY,
+        });
+
+        async function readHtmlFiles(dir) {
+          const files = await fs.readdir(dir, { withFileTypes: true });
+          const contents = [];
+
+          for (const file of files) {
+            const fullPath = path.join(dir, file.name);
+            if (file.isDirectory()) {
+              contents.push(...await readHtmlFiles(fullPath));
+            } else if (file.name.endsWith('.html')) {
+              const content = await fs.readFile(fullPath, 'utf-8');
+              contents.push({
+                path: fullPath,
+                content: content
+              });
+            }
+          }
+
+          return contents;
+        }
+
+        async function convertToMarkdown() {
+          try {
+            // Read all HTML documentation files
+            const docFiles = await readHtmlFiles('target/doc/simple_mpi');
+            
+            // Create docs directory for markdown files
+            await fs.mkdir('markdown_docs', { recursive: true });
+
+            console.log('Converting documentation to markdown...');
+            
+            const message = await anthropic.messages.create({
+                model: "claude-3-5-sonnet-20241022",
+                max_tokens: 4096,
+                messages: [{
+                  role: "user",
+                  content: `Here is all the Rust documentation HTML content. Convert it into a single, well-structured markdown document that preserves all technical information, code examples, and structure. Remove HTML-specific elements but maintain the content and formatting in Markdown format. Include a table of contents at the beginning:
+
+                  ${docFiles.map(file => `
+                  # File: ${path.basename(file.path)}
+                  ${file.content}
+                  `).join('\n\n')}`
+                }]
+            });
+
+            // Save as single markdown file
+            await fs.writeFile('markdown_docs/documentation.md', message.content[0].text);
+            console.log('Created unified markdown documentation');
+          } catch (error) {
+            console.error('Error:', error);
+            process.exit(1);
+          }
+        }
+
+        convertToMarkdown();
+        EOL
+
+    - name: Install Dependencies
+      run: npm install @anthropic-ai/sdk
+
+    - name: Convert Documentation to Markdown
+      env:
+        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      run: node convert_docs.js
+
+    - name: Upload HTML Documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: rust-docs-html
+        path: target/doc/simple_mpi
+        
+    - name: Upload Markdown Documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: rust-docs-markdown
+        path: markdown_docs
