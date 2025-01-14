@@ -70,7 +70,7 @@ jobs:
             print('Converting documentation to markdown...')
             message = anthropic.messages.create(
                 model="claude-3-5-sonnet-20241022",
-                max_tokens=4096,
+                max_tokens=1000000,
                 messages=[{
                     "role": "user",
                     "content": prompt

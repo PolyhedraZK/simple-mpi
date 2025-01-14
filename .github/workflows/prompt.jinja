@@ -11,7 +11,7 @@ Required elements to preserve (exactly as they appear in source):
 - Warning/Note/Example blocks
 - All links and cross-references (converted to Markdown format)
 - Version requirements and feature flags
-- Every doc comment and technical description
+- All doc comments and technical descriptions
 - Associated types, constants, and methods
 
 Formatting rules:
@@ -21,16 +21,40 @@ Formatting rules:
 4. Use 4-space indentation for nested lists
 5. Maintain original parameter table structure
 6. Convert HTML tables to Markdown table syntax
+7. Never use [...] or similar placeholders
+8. Never add notes about conversion process or status
+9. Convert ALL content without truncation
+10. Output markdown content directly without introduction or meta-commentary
+
+Rules for code blocks:
+- Use ```rust for Rust code examples
+- Use ``` for terminal/console output
+- Preserve exact indentation and spacing
+- Keep all comments and documentation strings
+- Maintain original line breaks in code
+
+Rules for links and references:
+- Convert all HTML <a> tags to Markdown [text](link) format
+- Preserve all internal section references
+- Keep all external URLs
+- Convert anchor links to Markdown section references
+
+Rules for special blocks:
+- Convert WARNING/NOTE/IMPORTANT HTML blocks to Markdown blockquotes
+- Preserve all admonition labels (e.g., "Warning:", "Note:")
+- Maintain formatting within these blocks
 
 Do not:
 - Add explanations or summaries
 - Modify code examples
 - Restructure the documentation
-- Skip any elements from original
+- Skip any elements from source
 - Add any content not present in source
+- Include comments about conversion process
+- Use ellipsis or placeholders
+- Include status updates or progress indicators
 
 Expected TOC structure:
-```
 # Crate name
 [Auto-generated table of contents]
 
@@ -39,7 +63,6 @@ Expected TOC structure:
 
 ## Structs/Enums/Traits
 [All items exactly as documented]
-```
 
 Input HTML documentation follows:
 {{ documentation }}
