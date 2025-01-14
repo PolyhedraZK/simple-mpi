@@ -27,108 +27,13 @@ jobs:
       with:
         python-version: '3.11'
 
-    - name: Create Doc Conversion Script
-      run: |
-        cat > convert_docs.py << 'EOL'
-        import os
-        import json
-        from pathlib import Path
-        from jinja2 import Template
-        from anthropic import Anthropic
-        
-        def read_html_files(dir_path):
-            # Read files in a deterministic order
-            paths = sorted(Path(dir_path).rglob('*.html'))
-            contents = []
-            for path in paths:
-                with open(path, 'r', encoding='utf-8') as f:
-                    contents.append({
-                        'path': str(path),
-                        'content': f.read()
-                    })
-            return contents
-
-        def convert_documentation(anthropic, prompt):
-            """Convert documentation with multiple API calls if needed"""
-            full_response = []
-            messages = [{
-                "role": "user",
-                "content": prompt
-            }, {
-                "role": "assistant",
-                "content": "#"
-            }]
-            
-            while True:
-                print(f'Making API call {len(full_response) + 1}...')
-                message = anthropic.messages.create(
-                    model="claude-3-5-sonnet-20241022",
-                    max_tokens=8192,
-                    messages=messages
-                )
-                
-                response_text = message.content[0].text
-                full_response.append(response_text)
-                
-                # Check if we hit the max_tokens limit
-                if message.stop_reason != "max_tokens":
-                    break
-                    
-                # Add the response and request continuation
-                messages.append({"role": "assistant", "content": response_text})
-                tail_of_last_response = response_text[-1000:]
-                messages.append({
-                    "role": "assistant", 
-                    "content": tail_of_last_response if tail_of_last_response else "#"
-                })
-            
-            return ''.join(full_response)
-        
-        def main():
-            # Read all HTML documentation files
-            doc_files = read_html_files('target/doc/simple_mpi')
-            
-            # Combine all HTML content
-            all_docs = '\n\n'.join(f"# File: {Path(f['path']).name}\n{f['content']}" 
-                                 for f in doc_files)
-            
-            # Read the template
-            with open('.github/workflows/prompt.jinja', 'r') as f:
-                template = Template(f.read())
-            
-            # Render the template
-            prompt = template.render(documentation=all_docs)
-            
-            # Create docs directory
-            os.makedirs('markdown_docs', exist_ok=True)
-            
-            # Convert to markdown using Claude with multiple calls if needed
-            anthropic = Anthropic(api_key=os.environ['ANTHROPIC_API_KEY'])
-            
-            print('Converting documentation to markdown...')
-            try:
-                markdown_content = convert_documentation(anthropic, prompt)
-                
-                # Save the markdown
-                with open('markdown_docs/documentation.md', 'w') as f:
-                    f.write(markdown_content)
-                print('Created unified markdown documentation')
-                
-            except Exception as e:
-                print(f'Error converting documentation: {str(e)}')
-                raise
-        
-        if __name__ == '__main__':
-            main()
-        EOL
-
     - name: Install Dependencies
-      run: pip install anthropic jinja2
+      run: pip install openai jinja2 pydantic
 
-    - name: Convert Documentation to Markdown
+    - name: Convert Documentation
       env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-      run: python convert_docs.py
+        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      run: python .github/workflows/doc_converter.py
 
     - name: Upload HTML Documentation
       uses: actions/upload-artifact@v4
@@ -136,8 +41,8 @@ jobs:
         name: rust-docs-html
         path: target/doc/simple_mpi
         
-    - name: Upload Markdown Documentation
+    - name: Upload Documentation
       uses: actions/upload-artifact@v4
       with:
-        name: rust-docs-markdown
+        name: rust-docs
         path: markdown_docs

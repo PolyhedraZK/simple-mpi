@@ -1,69 +1,118 @@
-You are tasked with performing a direct, exact conversion of Rust HTML documentation into Markdown format.
+# Rust Documentation Conversion Requirements
 
-Input: Rust crate HTML documentation from `cargo doc` output
-Output: A single Markdown file that exactly mirrors the original documentation
+## Core Principles
+- Perform a precise, complete conversion from Rust source to documentation
+- Maintain exact fidelity with the original source material
+- Present raw, compilable Rust code without Markdown formatting
 
-Required elements to preserve (exactly as they appear in source):
-- All type signatures and code blocks (with ```rust annotation)
-- Function signatures and their parameters
-- Module hierarchies and their structure 
-- Implementation blocks and trait implementations
-- Warning/Note/Example blocks
-- All links and cross-references (converted to Markdown format)
-- Version requirements and feature flags
-- All doc comments and technical descriptions
-- Associated types, constants, and methods
+## Mandatory Elements (Must Be Preserved Exactly)
 
-Formatting rules:
-1. Use ATX-style headers (# h1, ## h2, etc.) following the original hierarchy
-2. Preserve exact indentation in code blocks
-3. Keep all original line breaks
-4. Use 4-space indentation for nested lists
-5. Maintain original parameter table structure
-6. Convert HTML tables to Markdown table syntax
-7. Never use [...] or similar placeholders
-8. Never add notes about conversion process or status
-9. Convert ALL content without truncation
+### Code & Types
+- All type signatures, including generics and bounds
+- Raw Rust code blocks without Markdown decorators (no ```rust or ```)
+- Complete function signatures with full parameter lists and return types
+- Trait bounds and where clauses
+- Type aliases and associated types
+- Constants and static items
+- Enum variants with their fields
+- Struct fields and visibility modifiers
+- Module hierarchies and use declarations
+- Macro definitions and rules
 
-Method documentation rules:
-1. Each method must have sections in this order if present in source:
-    - Description (general text)
-    - Examples (if any)
-    - Arguments (if any)
-    - Returns (if any)
-    - Errors (if any)
-    - Safety (if any)
-    - Panics (if any)
-2. Format method signatures as:
-    ```rust
-    pub fn method_name(...) -> ReturnType
-    ```
-3. Format section headers as:
-    #### Arguments
-    - `arg_name` - description
-    
-    #### Returns
-    - Description of return value
+### Implementation Details
+- All impl blocks (both inherent and trait implementations)
+- Associated functions and methods
+- Default trait implementations
+- Trait bounds and constraints
+- Generic type parameters and lifetimes
+- Visibility modifiers (pub, pub(crate), etc.)
+- Attribute macros (#[derive], #[cfg], etc.)
 
-    #### Errors
-    - Error conditions
+### Documentation Elements
+- All doc comments (///, //!)
+- Warning, Note, and Example blocks with their full content
+- Cross-references and links (both intra-doc and external)
+- Version requirements (#[cfg(feature = "...")])
+- Feature flags and conditional compilation
+- Deprecation notices and stability attributes
+- Safety documentation for unsafe functions
+- Error handling documentation
+- Platform-specific notes
 
-Do not:
-- Add explanations or summaries
-- Modify code examples
-- Restructure the documentation
-- Skip any elements from source
-- Add any content not present in source
-- Include comments about conversion process
-- Use ellipsis or placeholders
-- Include status updates or progress indicators
-- Add introductory text about the conversion
+### Metadata
+- Crate and module-level documentation
+- Copyright notices and license information
+- Feature declarations and dependencies
+- Version compatibility notes
+- External crate dependencies
+- Public/private visibility specifications
 
-Expected TOC structure:
-# Crate name
-## Structs/Enums/Traits
-### Methods function 1
-### Methods function 2
+## Strict Prohibitions
+1. No content modification:
+   - No summarizing or paraphrasing
+   - No explanatory additions
+   - No structural changes
+   - No omissions or truncations
+   - No merging or splitting of documentation blocks
 
-Input HTML documentation follows:
-{{ documentation }}
+2. No formatting changes:
+   - Preserve exact whitespace and indentation
+   - Maintain original line breaks
+   - Keep code block structure intact
+
+3. No additional elements:
+   - No conversion notes or status updates
+   - No section headers not present in source
+   - No navigation aids or summaries
+   - No explanatory comments
+   - No progress indicators
+
+## Output Requirements
+1. Code blocks:
+   - Output raw Rust code without Markdown delimiters
+   - Preserve exact indentation and spacing
+   - Include all attributes and annotations
+   - Maintain original line breaks
+
+2. Documentation structure:
+   - Follow exact source hierarchy
+   - Preserve all nested relationships
+   - Maintain original section ordering
+   - Keep all cross-reference structures
+
+3. Completeness:
+   - Convert every single item (functions, structs, enums, traits, etc.)
+   - Include all associated documentation
+   - Preserve every attribute and annotation
+   - Maintain all conditional compilation blocks
+
+4. Accuracy:
+   - Exact reproduction of all technical terms
+   - Preserve all parameter names and types
+   - Maintain precise error messages
+   - Keep all version numbers and constraints
+   
+### Code Block Rules
+1. Strip all markdown and formatting:
+   - Remove ALL triple backticks
+   - Remove ALL language indicators and attributes
+   - Remove any markdown formatting characters
+   - Remove any HTML or XML tags
+
+2. Preserve code integrity:
+   - Keep exact indentation within the code
+   - Maintain all line breaks in the code
+   - Preserve all comments within the code
+   - Keep all whitespace that's part of the code logic
+
+3. No additional decorators:
+   - No syntax highlighting indicators
+   - No line numbers
+   - No code fence markers
+   - No execution instructions (like no_run, should_panic)
+
+4. Direct output rules:
+   - Code should start directly at the left margin
+   - No prefix characters or spacing
+   - No wrapping elements
+   - No trailing empty lines
